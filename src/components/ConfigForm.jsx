@@ -37,9 +37,9 @@ const ConfigForm = ({ initialData, onSave, onCancel }) => {
       </h3>
       
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
           
-          <div style={{ gridColumn: 'span 3' }}>
+          <div style={{ gridColumn: 'span 2' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Nome da Etiqueta (ex: Meli Produtos)</label>
             <input 
               type="text" 
@@ -65,40 +65,6 @@ const ConfigForm = ({ initialData, onSave, onCancel }) => {
 
           <div style={{ gridColumn: 'span 1' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Altura (cm)</label>
-            <input 
-              type="number" 
-              step="0.1"
-              value={height} 
-              onChange={(e) => setHeight(e.target.value)} 
-              placeholder="Ex: 4"
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          <div style={{ gridColumn: 'span 1' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Ajuste p/ Direita (Pontos ZPL)</label>
-            <input 
-              type="number" 
-              value={offsetX} 
-              onChange={(e) => setOffsetX(e.target.value)} 
-              placeholder="Ex: 50 ou -30"
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          <div style={{ gridColumn: 'span 1' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Ajuste p/ Direita (Pontos ZPL)</label>
-            <input 
-              type="number" 
-              value={offsetX} 
-              onChange={(e) => setOffsetX(e.target.value)} 
-              placeholder="Ex: 50 ou -30"
-              style={{ width: '100%' }}
-            />
-          </div>
-          
-          <div style={{ gridColumn: 'span 1' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Altura (cm) - Opcional</label>
             <input 
               type="number" 
               step="0.1"
