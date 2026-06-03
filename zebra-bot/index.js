@@ -70,21 +70,27 @@ async function sendZplToPrinter(zplCode) {
 
   const payload = {
     device: {
-      deviceType: activePrinter.deviceType,
+      name: activePrinter.name,
       uid: activePrinter.uid,
+      connection: activePrinter.connection,
+      deviceType: activePrinter.deviceType,
+      version: 2,
       provider: activePrinter.provider,
-      name: activePrinter.name
+      manufacturer: activePrinter.manufacturer
     },
     data: zplCode
   };
 
   const response = await fetch(`${ZEBRA_API}/write`, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
-    throw new Error(`Falha na API da Zebra: ${response.statusText}`);
+    throw new Error(`Falha na API da Zebra: ${response.statusText} (${response.status})`);
   }
 }
 
