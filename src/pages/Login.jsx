@@ -29,37 +29,33 @@ const Login = () => {
 
   return (
     <div className="layout-container animate-fade-in" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <h2 style={{ margin: 0, color: 'var(--text-primary)' }}>Zebra Print <span style={{ color: 'var(--primary-color)' }}>Cloud</span></h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>Faça login para acessar suas impressoras</p>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', padding: '3rem 2.5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+          <h2 style={{ fontSize: '2.2rem', margin: 0, color: 'var(--text-primary)', letterSpacing: '-1px' }}>Zebra Print <span style={{ color: 'var(--primary-color)' }}>Cloud</span></h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginTop: '0.75rem' }}>Acesse seu painel de controle</p>
         </div>
         
         {error && (
-          <div style={{ 
-            padding: '0.75rem', marginBottom: '1.5rem', borderRadius: '4px',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)',
-            border: '1px solid var(--danger-color)', textAlign: 'center', fontSize: '0.9rem'
-          }}>
+          <div className="alert-box error-alert">
             {error}
           </div>
         )}
         
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>E-mail</label>
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label className="input-label">E-mail Corporativo</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ width: '100%' }} placeholder="seu@email.com" />
           </div>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Senha</label>
+          <div style={{ marginBottom: '2rem' }}>
+            <label className="input-label">Senha de Acesso</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ width: '100%' }} placeholder="••••••••" />
           </div>
-          <button disabled={loading} type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.75rem', fontSize: '1rem' }}>
-            {loading ? 'Entrando...' : 'Entrar'}
+          <button disabled={loading} type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.9rem', fontSize: '1.05rem', fontWeight: 600 }}>
+            {loading ? 'Autenticando...' : 'Entrar no Sistema'}
           </button>
         </form>
         
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+        <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
           Ainda não tem conta? <Link to="/register" style={{ color: 'var(--primary-color)', textDecoration: 'none', fontWeight: 600 }}>Cadastre-se grátis</Link>
         </div>
       </div>

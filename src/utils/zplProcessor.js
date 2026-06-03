@@ -46,3 +46,25 @@ export const injectDimensions = (rawZpl, widthCm = 0, heightCm = 0) => {
 
   return modifiedZpl;
 };
+
+/**
+ * Injeta o comando de quantidade no ZPL
+ * @param {string} rawZpl - ZPL original
+ * @param {number} quantity - Número de cópias
+ * @returns {string} - Novo ZPL
+ */
+export const injectQuantity = (rawZpl, quantity = 1) => {
+  if (quantity <= 1) return rawZpl;
+  
+  let modifiedZpl = rawZpl;
+  
+  // Se já existe um comando de quantidade (^PQ), nós o atualizamos
+  if (/\^PQ\d+/i.test(modifiedZpl)) {
+    modifiedZpl = modifiedZpl.replace(/\^PQ\d+/gi, `^PQ${quantity}`);
+  } else {
+    // Caso contrário, injetamos logo antes do fechamento ^XZ
+    modifiedZpl = modifiedZpl.replace(/\^XZ/i, `^PQ${quantity}\n^XZ`);
+  }
+  
+  return modifiedZpl;
+};
