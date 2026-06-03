@@ -21,7 +21,7 @@ function Dashboard() {
   const [isSearchingPrinters, setIsSearchingPrinters] = useState(false);
 
   // Relay State
-  const [isHost, setIsHost] = useState(localStorage.getItem('zebra_is_host') === 'true');
+  const [isHost, setIsHost] = useState(false);
 
   // Load configs from Firestore
   useEffect(() => {
@@ -34,12 +34,14 @@ function Dashboard() {
 
   // Printer logic
   useEffect(() => {
-    const savedPrinterUid = localStorage.getItem('zebra_active_printer_uid');
+    if (!currentUser) return;
+    const savedPrinterUid = localStorage.getItem(`zebra_active_printer_uid_${currentUser.uid}`);
     if (savedPrinterUid) {
       setActivePrinterUid(savedPrinterUid);
     }
+    setIsHost(localStorage.getItem(`zebra_is_host_${currentUser.uid}`) === 'true');
     findPrinters();
-  }, []);
+  }, [currentUser]);
 
   const findPrinters = async () => {
     setIsSearchingPrinters(true);
@@ -64,13 +66,13 @@ function Dashboard() {
 
   const handlePrinterChange = (uid) => {
     setActivePrinterUid(uid);
-    localStorage.setItem('zebra_active_printer_uid', uid);
+    if (currentUser) localStorage.setItem(`zebra_active_printer_uid_${currentUser.uid}`, uid);
   };
 
   const handleToggleHost = () => {
     const newVal = !isHost;
     setIsHost(newVal);
-    localStorage.setItem('zebra_is_host', newVal);
+    if (currentUser) localStorage.setItem(`zebra_is_host_${currentUser.uid}`, newVal);
   };
 
   const activePrinterObj = availablePrinters.find(p => p.uid === activePrinterUid);
