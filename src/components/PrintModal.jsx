@@ -3,7 +3,7 @@ import { printZpl } from '../utils/zebraBrowserPrint';
 import { shiftZplX, injectDimensions } from '../utils/zplProcessor';
 import { sendCloudPrintJob, subscribeToJobStatus } from '../utils/firestore';
 import { useAuth } from '../contexts/AuthContext';
-import { fileToCanvas, canvasToZpl } from '../utils/imageToZpl';
+import { fileToCanvas, canvasToZpl, textToCanvas } from '../utils/imageToZpl';
 
 const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
   const { currentUser } = useAuth();
@@ -11,6 +11,7 @@ const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
   const [status, setStatus] = useState(null);
   const [isPortrait, setIsPortrait] = useState(true);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [textToPrint, setTextToPrint] = useState('');
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -18,7 +19,7 @@ const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
 
     try {
       setIsProcessingFile(true);
-      setStatus({ type: 'info', message: 'Extraindo e convertendo para ZPL...' });
+      setStatus({ type: 'info', message: 'Extraindo, cortando e convertendo...' });
       
       const canvas = await fileToCanvas(
         file, 
@@ -32,7 +33,32 @@ const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
       setStatus({ type: 'success', message: 'Arquivo convertido com sucesso!' });
     } catch (err) {
       console.error(err);
-      setStatus({ type: 'error', message: 'Erro ao converter o arquivo.' });
+      setStatus({ type: 'error', message: `Erro ao converter o arquivo: ${err.message}` });
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
+  const handleTextConversion = async () => {
+    if (!textToPrint.trim()) return;
+
+    try {
+      setIsProcessingFile(true);
+      setStatus({ type: 'info', message: 'Gerando imagem do texto...' });
+
+      const canvas = await textToCanvas(
+        textToPrint,
+        isPortrait,
+        parseFloat(config.width) || 10, 
+        parseFloat(config.height) || 15
+      );
+      const generatedZpl = canvasToZpl(canvas);
+      
+      setZplCode(generatedZpl);
+      setStatus({ type: 'success', message: 'Texto convertido com sucesso!' });
+    } catch (err) {
+      console.error(err);
+      setStatus({ type: 'error', message: `Erro ao converter texto: ${err.message}` });
     } finally {
       setIsProcessingFile(false);
     }
@@ -98,7 +124,7 @@ const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
       display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000,
       padding: '1rem'
     }}>
-      <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '600px', padding: '2rem' }}>
+      <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '700px', padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h2 style={{ margin: 0 }}>Imprimir: {config.name}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>&times;</button>
@@ -110,29 +136,53 @@ const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1', minWidth: '200px' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Converter PDF/Imagem para ZPL:</label>
-            <input 
-              type="file" 
-              accept=".pdf, image/png, image/jpeg" 
-              onChange={handleFileUpload} 
-              disabled={isProcessingFile}
-              className="btn btn-secondary"
-              style={{ width: '100%', padding: '0.6rem' }}
-            />
-          </div>
+        {/* Gerador de Arquivo e Texto */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', background: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '8px' }}>
           
-          <div style={{ paddingBottom: '0.4rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', width: 'fit-content' }}>
               <input 
                 type="checkbox" 
                 checked={isPortrait} 
                 onChange={(e) => setIsPortrait(e.target.checked)} 
                 style={{ width: '18px', height: '18px', accentColor: 'var(--primary-color)' }}
               />
-              <span style={{ fontSize: '0.9rem' }}>Modo Retrato (Rotacionar 90°)</span>
+              <span style={{ fontSize: '0.9rem' }}>Modo Retrato (Rotacionar Imagens/Textos em 90°)</span>
             </label>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Converter PDF/Imagem:</label>
+            <input 
+              type="file" 
+              accept=".pdf, image/png, image/jpeg" 
+              onChange={handleFileUpload} 
+              disabled={isProcessingFile}
+              className="btn btn-secondary"
+              style={{ width: '100%', padding: '0.5rem', fontSize: '0.85rem' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Ou Gerar Etiqueta de Texto:</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input 
+                type="text" 
+                value={textToPrint}
+                onChange={(e) => setTextToPrint(e.target.value)}
+                placeholder="Ex: CUIDADO FRÁGIL"
+                style={{ flex: 1, padding: '0.5rem', fontSize: '0.85rem' }}
+              />
+              <button 
+                type="button"
+                className="btn btn-secondary" 
+                onClick={handleTextConversion}
+                disabled={isProcessingFile || !textToPrint}
+                style={{ padding: '0.5rem 1rem' }}
+              >
+                Gerar
+              </button>
+            </div>
           </div>
         </div>
 

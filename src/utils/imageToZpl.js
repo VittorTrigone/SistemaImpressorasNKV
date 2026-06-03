@@ -1,10 +1,63 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs';
 
-// Configurar o worker do PDF.js para rodar no navegador via Vite
+// Usar Unpkg para garantir que o worker não falhe no build do Vite
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 }
+
+/**
+ * Remove bordas brancas de um canvas (Auto-crop).
+ * @param {HTMLCanvasElement} canvas
+ * @returns {HTMLCanvasElement}
+ */
+const autoCropCanvas = (canvas) => {
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  let minX = width, minY = height, maxX = 0, maxY = 0;
+  let hasPixels = false;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = (y * width + x) * 4;
+      const r = data[index];
+      const g = data[index + 1];
+      const b = data[index + 2];
+      const a = data[index + 3];
+
+      // Considera não-branco se alfa > 0 e a cor não for quase branca pura
+      if (a > 10 && (r < 240 || g < 240 || b < 240)) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+        hasPixels = true;
+      }
+    }
+  }
+
+  if (!hasPixels) return canvas;
+
+  // Dá uma margenzinha
+  const padding = 10;
+  minX = Math.max(0, minX - padding);
+  minY = Math.max(0, minY - padding);
+  maxX = Math.min(width, maxX + padding);
+  maxY = Math.min(height, maxY + padding);
+
+  const croppedWidth = maxX - minX;
+  const croppedHeight = maxY - minY;
+
+  const croppedCanvas = document.createElement('canvas');
+  croppedCanvas.width = croppedWidth;
+  croppedCanvas.height = croppedHeight;
+  croppedCanvas.getContext('2d').putImageData(ctx.getImageData(minX, minY, croppedWidth, croppedHeight), 0, 0);
+
+  return croppedCanvas;
+};
 
 /**
  * Lê um arquivo (PDF, PNG, JPG) e o desenha em um elemento Canvas.
@@ -22,40 +75,35 @@ export const fileToCanvas = async (file, isPortrait = true, labelWidthCm = 10, l
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        let imgWidth, imgHeight;
-        let imageElement = null;
+        let sourceCanvas = document.createElement('canvas');
+        let sourceCtx = sourceCanvas.getContext('2d');
 
         if (isPdf) {
-          // Lógica para PDF
           const typedarray = new Uint8Array(e.target.result);
           const pdf = await pdfjsLib.getDocument(typedarray).promise;
-          const page = await pdf.getPage(1); // Pega a primeira página
+          const page = await pdf.getPage(1);
 
-          // Escala generosa para garantir que não perca qualidade antes do redimensionamento
           const viewport = page.getViewport({ scale: 4.0 });
-          
-          const tempCanvas = document.createElement('canvas');
-          const tempCtx = tempCanvas.getContext('2d');
-          tempCanvas.width = viewport.width;
-          tempCanvas.height = viewport.height;
+          sourceCanvas.width = viewport.width;
+          sourceCanvas.height = viewport.height;
 
-          await page.render({ canvasContext: tempCtx, viewport: viewport }).promise;
-          imageElement = tempCanvas;
-          imgWidth = tempCanvas.width;
-          imgHeight = tempCanvas.height;
+          await page.render({ canvasContext: sourceCtx, viewport: viewport }).promise;
         } else {
-          // Lógica para Imagem Comum (PNG/JPG)
-          imageElement = new Image();
+          let imageElement = new Image();
           await new Promise((res) => {
             imageElement.onload = res;
             imageElement.src = e.target.result;
           });
-          imgWidth = imageElement.width;
-          imgHeight = imageElement.height;
+          sourceCanvas.width = imageElement.width;
+          sourceCanvas.height = imageElement.height;
+          sourceCtx.drawImage(imageElement, 0, 0);
         }
 
-        // Definir tamanho final baseado na etiqueta (203 DPI = ~80 dots por cm)
-        // Se a largura não foi configurada, assume 10x15cm
+        // Corta as bordas brancas do sourceCanvas
+        const croppedSource = autoCropCanvas(sourceCanvas);
+        let imgWidth = croppedSource.width;
+        let imgHeight = croppedSource.height;
+
         const finalWidthCm = labelWidthCm || 10;
         const finalHeightCm = labelHeightCm || 15;
         const dotsPerCm = 80;
@@ -67,11 +115,9 @@ export const fileToCanvas = async (file, isPortrait = true, labelWidthCm = 10, l
         canvas.height = canvasHeight;
         let ctx = canvas.getContext('2d');
 
-        // Fundo branco para garantir que transparências não virem preto
         ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-        // Lógica de rotação
         let shouldRotate = false;
         if (isPortrait && imgWidth > imgHeight) {
           shouldRotate = true;
@@ -83,33 +129,29 @@ export const fileToCanvas = async (file, isPortrait = true, labelWidthCm = 10, l
         let drawHeight = imgHeight;
 
         if (shouldRotate) {
-          // Se rotacionar, inverte as proporções da imagem para o cálculo de escala
           drawWidth = imgHeight;
           drawHeight = imgWidth;
         }
 
-        // Calcula a escala para caber (contain) dentro do canvas final
         const scale = Math.min(canvasWidth / drawWidth, canvasHeight / drawHeight);
         const finalDrawWidth = drawWidth * scale;
         const finalDrawHeight = drawHeight * scale;
 
-        // Centraliza na etiqueta
         const offsetX = (canvasWidth - finalDrawWidth) / 2;
         const offsetY = (canvasHeight - finalDrawHeight) / 2;
 
         if (shouldRotate) {
           ctx.translate(canvasWidth / 2, canvasHeight / 2);
           ctx.rotate((90 * Math.PI) / 180);
-          // Ao rotacionar, a largura e altura originais da imagem são usadas no drawImage
           ctx.drawImage(
-            imageElement, 
+            croppedSource, 
             -finalDrawHeight / 2, 
             -finalDrawWidth / 2, 
             finalDrawHeight, 
             finalDrawWidth
           );
         } else {
-          ctx.drawImage(imageElement, offsetX, offsetY, finalDrawWidth, finalDrawHeight);
+          ctx.drawImage(croppedSource, offsetX, offsetY, finalDrawWidth, finalDrawHeight);
         }
 
         resolve(canvas);
@@ -124,6 +166,62 @@ export const fileToCanvas = async (file, isPortrait = true, labelWidthCm = 10, l
     } else {
       reader.readAsDataURL(file);
     }
+  });
+};
+
+/**
+ * Cria um canvas contendo um texto grande centralizado, dimensionado para a etiqueta.
+ */
+export const textToCanvas = async (text, isPortrait = true, labelWidthCm = 10, labelHeightCm = 15) => {
+  return new Promise((resolve) => {
+    const finalWidthCm = labelWidthCm || 10;
+    const finalHeightCm = labelHeightCm || 15;
+    const dotsPerCm = 80;
+    const canvasWidth = Math.round(finalWidthCm * dotsPerCm);
+    const canvasHeight = Math.round(finalHeightCm * dotsPerCm);
+
+    let canvas = document.createElement('canvas');
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    let ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    ctx.fillStyle = "#000000";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    let drawWidth = canvasWidth;
+    let drawHeight = canvasHeight;
+
+    if (isPortrait) {
+      ctx.translate(canvasWidth / 2, canvasHeight / 2);
+      ctx.rotate((90 * Math.PI) / 180);
+      drawWidth = canvasHeight;
+      drawHeight = canvasWidth;
+      // Ajusta o contexto para o ponto 0,0 temporário
+      ctx.translate(-drawWidth / 2, -drawHeight / 2);
+    }
+
+    let fontSize = 400;
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    let textWidth = ctx.measureText(text).width;
+    
+    while (textWidth > drawWidth * 0.9 || fontSize > drawHeight * 0.8) {
+      fontSize -= 10;
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      textWidth = ctx.measureText(text).width;
+      if (fontSize <= 20) break;
+    }
+
+    if (isPortrait) {
+      ctx.fillText(text, drawWidth / 2, drawHeight / 2);
+    } else {
+      ctx.fillText(text, canvasWidth / 2, canvasHeight / 2);
+    }
+
+    resolve(canvas);
   });
 };
 
