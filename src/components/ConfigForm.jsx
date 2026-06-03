@@ -11,10 +11,8 @@ const ConfigForm = ({ initialData, onSave, onCancel }) => {
   useEffect(() => {
     if (initialData) {
       setName(initialData.name || '');
-      setColumns(initialData.columns || '1');
       setWidth(initialData.width || '');
       setHeight(initialData.height || '');
-      setGap(initialData.gap || '');
       setOffsetX(initialData.offsetX || '0');
     }
   }, [initialData]);
@@ -26,10 +24,8 @@ const ConfigForm = ({ initialData, onSave, onCancel }) => {
     onSave({
       id: initialData?.id || Date.now().toString(),
       name,
-      columns: parseInt(columns, 10) || 1,
       width: parseFloat(width) || 0,
       height: parseFloat(height) || 0,
-      gap: parseFloat(gap) || 0,
       offsetX: parseInt(offsetX, 10) || 0
     });
   };
@@ -56,38 +52,36 @@ const ConfigForm = ({ initialData, onSave, onCancel }) => {
           </div>
 
           <div style={{ gridColumn: 'span 1' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Colunas na Bobina</label>
-            <select 
-              value={columns} 
-              onChange={(e) => setColumns(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem', borderRadius: '4px' }}
-            >
-              <option value="1">1 Coluna</option>
-              <option value="2">2 Colunas</option>
-              <option value="3">3 Colunas</option>
-            </select>
-          </div>
-
-          <div style={{ gridColumn: 'span 1' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Largura de 1 Etiqueta (cm)</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Largura Total da Bobina (cm)</label>
             <input 
               type="number" 
               step="0.1"
               value={width} 
               onChange={(e) => setWidth(e.target.value)} 
+              placeholder="Ex: 8 ou 10"
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          <div style={{ gridColumn: 'span 1' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Altura (cm)</label>
+            <input 
+              type="number" 
+              step="0.1"
+              value={height} 
+              onChange={(e) => setHeight(e.target.value)} 
               placeholder="Ex: 4"
               style={{ width: '100%' }}
             />
           </div>
 
           <div style={{ gridColumn: 'span 1' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Espaçamento entre colunas (cm)</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Ajuste p/ Direita (Pontos ZPL)</label>
             <input 
               type="number" 
-              step="0.1"
-              value={gap} 
-              onChange={(e) => setGap(e.target.value)} 
-              placeholder="Ex: 0.2"
+              value={offsetX} 
+              onChange={(e) => setOffsetX(e.target.value)} 
+              placeholder="Ex: 50 ou -30"
               style={{ width: '100%' }}
             />
           </div>

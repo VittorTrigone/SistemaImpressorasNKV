@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { printZpl } from '../utils/zebraBrowserPrint';
-import { processMultiColumnZpl, shiftZplX } from '../utils/zplProcessor';
+import { shiftZplX, injectDimensions } from '../utils/zplProcessor';
 import { sendCloudPrintJob, subscribeToJobStatus } from '../utils/firestore';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -19,16 +19,11 @@ const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
       setStatus({ type: 'info', message: 'Processando ZPL...' });
       
       let finalZpl = zplCode;
-      const numColumns = parseInt(config.columns, 10) || 1;
       const labelWidthCm = parseFloat(config.width) || 0;
-      const gapCm = parseFloat(config.gap) || 0;
-      
-      const labelWidthDots = Math.round(labelWidthCm * 80);
-      const gapDots = Math.round(gapCm * 80);
+      const labelHeightCm = parseFloat(config.height) || 0;
 
-      if (numColumns > 1) {
-        finalZpl = processMultiColumnZpl(zplCode, numColumns, labelWidthDots, gapDots);
-      }
+      // Injeta os comandos ^PW e ^LL
+      finalZpl = injectDimensions(finalZpl, labelWidthCm, labelHeightCm);
 
       const offsetX = parseInt(config.offsetX, 10) || 0;
       if (offsetX !== 0) {
