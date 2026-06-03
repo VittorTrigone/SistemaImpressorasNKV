@@ -118,12 +118,7 @@ export const fileToCanvas = async (file, isPortrait = true, labelWidthCm = 10, l
         ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-        let shouldRotate = false;
-        if (isPortrait && imgWidth > imgHeight) {
-          shouldRotate = true;
-        } else if (!isPortrait && imgHeight > imgWidth) {
-          shouldRotate = true;
-        }
+        let shouldRotate = isPortrait;
 
         let drawWidth = imgWidth;
         let drawHeight = imgHeight;

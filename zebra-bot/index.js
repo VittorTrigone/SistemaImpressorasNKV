@@ -1,8 +1,8 @@
-import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
-import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
-import fetch from "node-fetch";
-import readline from "readline";
+const { initializeApp } = require("firebase/app");
+const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
+const { getFirestore, collection, query, where, onSnapshot, doc, updateDoc } = require("firebase/firestore");
+const fetch = require("node-fetch");
+const readline = require("readline");
 
 const firebaseConfig = {
   apiKey: "AIzaSyCAH2Vm2Or_V07AL4MvtPGFVKp6VFfpkW8",
