@@ -1,17 +1,21 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
-// Configurar o worker do PDF.js para rodar no navegador via CDN
+// Configurar o worker do PDF.js para rodar no navegador via Vite
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 }
 
 /**
  * Lê um arquivo (PDF, PNG, JPG) e o desenha em um elemento Canvas.
+ * Escala e centraliza a imagem para caber na etiqueta (203 DPI).
  * @param {File} file O arquivo selecionado pelo usuário.
  * @param {boolean} isPortrait Se true, rotaciona a imagem em 90 graus (caso venha em paisagem).
+ * @param {number} labelWidthCm Largura da etiqueta em cm.
+ * @param {number} labelHeightCm Altura da etiqueta em cm.
  * @returns {Promise<HTMLCanvasElement>}
  */
-export const fileToCanvas = async (file, isPortrait = true) => {
+export const fileToCanvas = async (file, isPortrait = true, labelWidthCm = 10, labelHeightCm = 15) => {
   return new Promise((resolve, reject) => {
     const isPdf = file.type === 'application/pdf';
 
@@ -20,8 +24,6 @@ export const fileToCanvas = async (file, isPortrait = true) => {
       try {
         let imgWidth, imgHeight;
         let imageElement = null;
-        let canvas = document.createElement('canvas');
-        let ctx = canvas.getContext('2d');
 
         if (isPdf) {
           // Lógica para PDF
@@ -29,8 +31,8 @@ export const fileToCanvas = async (file, isPortrait = true) => {
           const pdf = await pdfjsLib.getDocument(typedarray).promise;
           const page = await pdf.getPage(1); // Pega a primeira página
 
-          // Escala de 3.0 para garantir boa resolução na impressão térmica
-          const viewport = page.getViewport({ scale: 3.0 });
+          // Escala generosa para garantir que não perca qualidade antes do redimensionamento
+          const viewport = page.getViewport({ scale: 4.0 });
           
           const tempCanvas = document.createElement('canvas');
           const tempCtx = tempCanvas.getContext('2d');
@@ -52,26 +54,62 @@ export const fileToCanvas = async (file, isPortrait = true) => {
           imgHeight = imageElement.height;
         }
 
-        // Se a largura for maior que a altura, e queremos modo Retrato, devemos rotacionar?
-        // Geralmente etiquetas do Mercado Livre vêm em paisagem. Se isPortrait for true, forçamos a rotação se for paisagem.
+        // Definir tamanho final baseado na etiqueta (203 DPI = ~80 dots por cm)
+        // Se a largura não foi configurada, assume 10x15cm
+        const finalWidthCm = labelWidthCm || 10;
+        const finalHeightCm = labelHeightCm || 15;
+        const dotsPerCm = 80;
+        const canvasWidth = Math.round(finalWidthCm * dotsPerCm);
+        const canvasHeight = Math.round(finalHeightCm * dotsPerCm);
+
+        let canvas = document.createElement('canvas');
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        let ctx = canvas.getContext('2d');
+
+        // Fundo branco para garantir que transparências não virem preto
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+        // Lógica de rotação
         let shouldRotate = false;
         if (isPortrait && imgWidth > imgHeight) {
           shouldRotate = true;
         } else if (!isPortrait && imgHeight > imgWidth) {
-          // Se o usuário pedir paisagem mas a imagem veio retrato (raro), rotacionamos
           shouldRotate = true;
         }
 
+        let drawWidth = imgWidth;
+        let drawHeight = imgHeight;
+
         if (shouldRotate) {
-          canvas.width = imgHeight;
-          canvas.height = imgWidth;
-          ctx.translate(canvas.width / 2, canvas.height / 2);
+          // Se rotacionar, inverte as proporções da imagem para o cálculo de escala
+          drawWidth = imgHeight;
+          drawHeight = imgWidth;
+        }
+
+        // Calcula a escala para caber (contain) dentro do canvas final
+        const scale = Math.min(canvasWidth / drawWidth, canvasHeight / drawHeight);
+        const finalDrawWidth = drawWidth * scale;
+        const finalDrawHeight = drawHeight * scale;
+
+        // Centraliza na etiqueta
+        const offsetX = (canvasWidth - finalDrawWidth) / 2;
+        const offsetY = (canvasHeight - finalDrawHeight) / 2;
+
+        if (shouldRotate) {
+          ctx.translate(canvasWidth / 2, canvasHeight / 2);
           ctx.rotate((90 * Math.PI) / 180);
-          ctx.drawImage(imageElement, -imgWidth / 2, -imgHeight / 2, imgWidth, imgHeight);
+          // Ao rotacionar, a largura e altura originais da imagem são usadas no drawImage
+          ctx.drawImage(
+            imageElement, 
+            -finalDrawHeight / 2, 
+            -finalDrawWidth / 2, 
+            finalDrawHeight, 
+            finalDrawWidth
+          );
         } else {
-          canvas.width = imgWidth;
-          canvas.height = imgHeight;
-          ctx.drawImage(imageElement, 0, 0, imgWidth, imgHeight);
+          ctx.drawImage(imageElement, offsetX, offsetY, finalDrawWidth, finalDrawHeight);
         }
 
         resolve(canvas);

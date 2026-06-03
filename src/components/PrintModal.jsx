@@ -20,7 +20,12 @@ const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
       setIsProcessingFile(true);
       setStatus({ type: 'info', message: 'Extraindo e convertendo para ZPL...' });
       
-      const canvas = await fileToCanvas(file, isPortrait);
+      const canvas = await fileToCanvas(
+        file, 
+        isPortrait, 
+        parseFloat(config.width) || 10, 
+        parseFloat(config.height) || 15
+      );
       const generatedZpl = canvasToZpl(canvas);
       
       setZplCode(generatedZpl);
