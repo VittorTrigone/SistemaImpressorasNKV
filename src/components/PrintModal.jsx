@@ -19,12 +19,15 @@ const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
       setStatus({ type: 'info', message: 'Processando ZPL...' });
       
       let finalZpl = zplCode;
-      const numColumns = parseInt(config.columns, 10);
+      const numColumns = parseInt(config.columns, 10) || 1;
       const labelWidthCm = parseFloat(config.width) || 0;
+      const gapCm = parseFloat(config.gap) || 0;
+      
       const labelWidthDots = Math.round(labelWidthCm * 80);
+      const gapDots = Math.round(gapCm * 80);
 
       if (numColumns > 1) {
-        finalZpl = processMultiColumnZpl(zplCode, numColumns, labelWidthDots);
+        finalZpl = processMultiColumnZpl(zplCode, numColumns, labelWidthDots, gapDots);
       }
 
       const offsetX = parseInt(config.offsetX, 10) || 0;
