@@ -3,11 +3,35 @@ import { printZpl } from '../utils/zebraBrowserPrint';
 import { shiftZplX, injectDimensions } from '../utils/zplProcessor';
 import { sendCloudPrintJob, subscribeToJobStatus } from '../utils/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { fileToCanvas, canvasToZpl } from '../utils/imageToZpl';
 
 const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
   const { currentUser } = useAuth();
   const [zplCode, setZplCode] = useState('');
   const [status, setStatus] = useState(null);
+  const [isPortrait, setIsPortrait] = useState(true);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      setIsProcessingFile(true);
+      setStatus({ type: 'info', message: 'Extraindo e convertendo para ZPL...' });
+      
+      const canvas = await fileToCanvas(file, isPortrait);
+      const generatedZpl = canvasToZpl(canvas);
+      
+      setZplCode(generatedZpl);
+      setStatus({ type: 'success', message: 'Arquivo convertido com sucesso!' });
+    } catch (err) {
+      console.error(err);
+      setStatus({ type: 'error', message: 'Erro ao converter o arquivo.' });
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
 
   const handlePrint = async () => {
     if (!zplCode.trim()) {
@@ -81,8 +105,34 @@ const PrintModal = ({ config, activePrinter, isHost, onClose }) => {
           </div>
         )}
 
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1', minWidth: '200px' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Converter PDF/Imagem para ZPL:</label>
+            <input 
+              type="file" 
+              accept=".pdf, image/png, image/jpeg" 
+              onChange={handleFileUpload} 
+              disabled={isProcessingFile}
+              className="btn btn-secondary"
+              style={{ width: '100%', padding: '0.6rem' }}
+            />
+          </div>
+          
+          <div style={{ paddingBottom: '0.4rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+              <input 
+                type="checkbox" 
+                checked={isPortrait} 
+                onChange={(e) => setIsPortrait(e.target.checked)} 
+                style={{ width: '18px', height: '18px', accentColor: 'var(--primary-color)' }}
+              />
+              <span style={{ fontSize: '0.9rem' }}>Modo Retrato (Rotacionar 90°)</span>
+            </label>
+          </div>
+        </div>
+
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Cole o Código ZPL Aqui:</label>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Ou Cole o Código ZPL Bruto:</label>
           <textarea
             value={zplCode}
             onChange={(e) => setZplCode(e.target.value)}
