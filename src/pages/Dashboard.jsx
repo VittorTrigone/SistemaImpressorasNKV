@@ -4,8 +4,9 @@ import '../index.css';
 import PrinterCard from '../components/PrinterCard';
 import PrintModal from '../components/PrintModal';
 import ConfigForm from '../components/ConfigForm';
-import { getAvailablePrinters, getDefaultPrinter } from '../utils/zebraBrowserPrint';
+import { getAvailablePrinters, getDefaultPrinter, printZpl } from '../utils/zebraBrowserPrint';
 import { useAuth } from '../contexts/AuthContext';
+import { subscribeToConfigs, saveConfigsToCloud, listenToPendingJobs, updateJobStatus } from '../utils/firestore';
 
 function Dashboard() {
   const { currentUser, logout } = useAuth();
@@ -19,27 +20,24 @@ function Dashboard() {
   const [activePrinterUid, setActivePrinterUid] = useState('');
   const [isSearchingPrinters, setIsSearchingPrinters] = useState(false);
 
-  // Load configs from localStorage on init
-  useEffect(() => {
-    const saved = localStorage.getItem('zebra_configs');
-    if (saved) {
-      setConfigs(JSON.parse(saved));
-    } else {
-      // Default sample config
-      const initialConfigs = [
-        { id: '1', name: 'Meli Produtos', width: '8', height: '4' },
-        { id: '2', name: 'Volume Padrão', width: '', height: '' }
-      ];
-      setConfigs(initialConfigs);
-      localStorage.setItem('zebra_configs', JSON.stringify(initialConfigs));
-    }
+  // Relay State
+  const [isHost, setIsHost] = useState(localStorage.getItem('zebra_is_host') === 'true');
 
-    // Also load saved printer choice if any
+  // Load configs from Firestore
+  useEffect(() => {
+    if (!currentUser) return;
+    const unsubscribe = subscribeToConfigs(currentUser.uid, (cloudConfigs) => {
+      setConfigs(cloudConfigs);
+    });
+    return unsubscribe;
+  }, [currentUser]);
+
+  // Printer logic
+  useEffect(() => {
     const savedPrinterUid = localStorage.getItem('zebra_active_printer_uid');
     if (savedPrinterUid) {
       setActivePrinterUid(savedPrinterUid);
     }
-
     findPrinters();
   }, []);
 
@@ -48,16 +46,11 @@ function Dashboard() {
     try {
       const printers = await getAvailablePrinters();
       setAvailablePrinters(printers);
-      
-      // se não houver impressora selecionada mas houver impressoras disponíveis, tentar a default
       if (!activePrinterUid && printers.length > 0) {
         try {
           const defaultP = await getDefaultPrinter();
-          if (defaultP && defaultP.uid) {
-            handlePrinterChange(defaultP.uid);
-          } else {
-            handlePrinterChange(printers[0].uid);
-          }
+          if (defaultP && defaultP.uid) handlePrinterChange(defaultP.uid);
+          else handlePrinterChange(printers[0].uid);
         } catch {
           handlePrinterChange(printers[0].uid);
         }
@@ -74,19 +67,41 @@ function Dashboard() {
     localStorage.setItem('zebra_active_printer_uid', uid);
   };
 
-  const saveConfigs = (newConfigs) => {
-    setConfigs(newConfigs);
-    localStorage.setItem('zebra_configs', JSON.stringify(newConfigs));
+  const handleToggleHost = () => {
+    const newVal = !isHost;
+    setIsHost(newVal);
+    localStorage.setItem('zebra_is_host', newVal);
   };
 
-  const handleSaveConfig = (configData) => {
+  const activePrinterObj = availablePrinters.find(p => p.uid === activePrinterUid);
+
+  // Lógica do Servidor de Impressão (Host)
+  useEffect(() => {
+    if (!currentUser || !isHost || !activePrinterObj) return;
+
+    const unsubscribe = listenToPendingJobs(currentUser.uid, async (jobs) => {
+      for (const job of jobs) {
+        try {
+          await updateJobStatus(currentUser.uid, job.id, 'printing');
+          await printZpl(job.zplCode, activePrinterObj);
+          await updateJobStatus(currentUser.uid, job.id, 'completed');
+        } catch (err) {
+          await updateJobStatus(currentUser.uid, job.id, 'error', err.message);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [currentUser, isHost, activePrinterObj]);
+
+  const handleSaveConfig = async (configData) => {
     let newConfigs;
     if (editingConfig) {
       newConfigs = configs.map(c => c.id === configData.id ? configData : c);
     } else {
       newConfigs = [...configs, configData];
     }
-    saveConfigs(newConfigs);
+    await saveConfigsToCloud(currentUser.uid, newConfigs);
     setShowForm(false);
     setEditingConfig(null);
   };
@@ -96,9 +111,10 @@ function Dashboard() {
     setShowForm(true);
   };
 
-  const handleDeleteConfig = (id) => {
+  const handleDeleteConfig = async (id) => {
     if (window.confirm('Tem certeza que deseja excluir esta configuração?')) {
-      saveConfigs(configs.filter(c => c.id !== id));
+      const newConfigs = configs.filter(c => c.id !== id);
+      await saveConfigsToCloud(currentUser.uid, newConfigs);
     }
   };
 
@@ -106,9 +122,6 @@ function Dashboard() {
     setEditingConfig(null);
     setShowForm(true);
   };
-
-  // Encontra o objeto da impressora ativa
-  const activePrinterObj = availablePrinters.find(p => p.uid === activePrinterUid);
 
   return (
     <div className="layout-container animate-fade-in">
@@ -118,14 +131,15 @@ function Dashboard() {
           <button onClick={logout} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Sair</button>
         </div>
       </div>
-      <header className="header">
-        <h1>Zebra Print Manager</h1>
+      <header className="header" style={{ marginBottom: '1.5rem' }}>
+        <h1>Zebra Print <span style={{ color: 'var(--primary-color)' }}>Cloud</span></h1>
         <p>Selecione uma configuração, cole seu ZPL e imprima num piscar de olhos.</p>
         
         {/* Componente de Seleção de Impressora */}
-        <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem' }}>
-          <div className="glass-panel" style={{ display: 'inline-flex', alignItems: 'center', padding: '0.5rem 1rem', gap: '0.75rem', borderRadius: '50px' }}>
-            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Impressora Ativa:</span>
+        <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          
+          <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 1rem', gap: '0.75rem', borderRadius: '50px' }}>
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Sua Impressora Local:</span>
             
             {isSearchingPrinters ? (
               <span style={{ fontSize: '0.9rem', color: 'var(--warning-color)' }}>Buscando...</span>
@@ -148,20 +162,29 @@ function Dashboard() {
               <span style={{ fontSize: '0.9rem', color: 'var(--danger-color)' }}>Nenhuma Zebra detectada</span>
             )}
             
-            <button onClick={findPrinters} style={{ color: 'var(--text-secondary)' }} title="Recarregar impressoras">
+            <button onClick={findPrinters} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} title="Recarregar impressoras">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
             </button>
           </div>
+
+          <label className="glass-panel" style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 1rem', gap: '0.75rem', borderRadius: '50px', cursor: 'pointer', border: isHost ? '1px solid var(--primary-color)' : '' }}>
+            <input 
+              type="checkbox" 
+              checked={isHost} 
+              onChange={handleToggleHost} 
+              style={{ width: '16px', height: '16px', accentColor: 'var(--primary-color)' }}
+            />
+            <span style={{ fontSize: '0.9rem', fontWeight: 500, color: isHost ? 'var(--primary-color)' : 'var(--text-secondary)' }}>
+              {isHost ? 'Atuando como Servidor de Impressão' : 'Tornar este PC o Servidor'}
+            </span>
+          </label>
         </div>
       </header>
       
       <main>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <h2>Minhas Configurações</h2>
-          <button 
-            className="btn btn-primary" 
-            onClick={openNewForm}
-          >
+          <button className="btn btn-primary" onClick={openNewForm}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             Nova Configuração
           </button>
@@ -177,7 +200,7 @@ function Dashboard() {
 
         {configs.length === 0 ? (
           <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            Nenhuma configuração salva. Crie uma para começar!
+            Nenhuma configuração salva na nuvem. Crie uma para começar!
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
@@ -198,6 +221,7 @@ function Dashboard() {
         <PrintModal 
           config={selectedConfig} 
           activePrinter={activePrinterObj}
+          isHost={isHost}
           onClose={() => setSelectedConfig(null)} 
         />
       )}
