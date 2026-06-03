@@ -80,7 +80,7 @@ export const fileToCanvas = async (file, isPortrait = true, labelWidthCm = 10, l
 
         if (isPdf) {
           const typedarray = new Uint8Array(e.target.result);
-          const pdf = await pdfjsLib.getDocument(typedarray).promise;
+          const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
           const page = await pdf.getPage(1);
 
           const viewport = page.getViewport({ scale: 4.0 });
