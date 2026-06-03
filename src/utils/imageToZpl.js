@@ -275,12 +275,40 @@ export const canvasToZpl = (canvas) => {
     hexString += '\n'; // Apenas para debug legível (o ZPL ignora quebras de linha no HEX)
   }
 
-  // Remove quebras de linha para ZPL compacto
+  // Remove quebras de linha (não usadas no GFA contínuo)
   const cleanHexString = hexString.replace(/\n/g, '');
 
-  // Formato: ^FO0,0^GFA,totalBytes,totalBytes,bytesPerRow,hexString^FS
-  // Usamos ^GFA (A = não compactado em ASCII Hex)
-  // ^GFA,data_length,data_length,bytes_per_row,data
-  const zpl = `^XA\n^FO0,0^GFA,${totalBytes},${totalBytes},${bytesPerRow},${cleanHexString}^FS\n^XZ`;
+  // Compressão RLE (Zebra Graphic Compression)
+  let compressedHex = '';
+  let i = 0;
+  while (i < cleanHexString.length) {
+    const char = cleanHexString[i];
+    let count = 1;
+    while (i + count < cleanHexString.length && cleanHexString[i + count] === char) {
+      count++;
+    }
+    
+    if (count > 1) {
+      let zCount = Math.floor(count / 400);
+      compressedHex += 'z'.repeat(zCount);
+      let rem = count % 400;
+      if (rem >= 20) {
+        let tens = Math.floor(rem / 20);
+        compressedHex += String.fromCharCode(103 + tens - 1); // 'g' = 103
+        rem = rem % 20;
+      }
+      if (rem > 0) {
+        compressedHex += String.fromCharCode(71 + rem - 1); // 'G' = 71
+      }
+      compressedHex += char;
+      i += count;
+    } else {
+      compressedHex += char;
+      i++;
+    }
+  }
+
+  // Formato: ^FO0,0^GFA,totalBytes,totalBytes,bytesPerRow,compressedHex^FS
+  const zpl = `^XA\n^FO0,0^GFA,${totalBytes},${totalBytes},${bytesPerRow},${compressedHex}^FS\n^XZ`;
   return zpl;
 };
